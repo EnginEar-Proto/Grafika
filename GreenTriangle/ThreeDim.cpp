@@ -45,8 +45,8 @@ class Camera {
 	vec3 camPos, target, direction;
 public:
 	Camera() {
-		camPos = vec3(2.f,-2.f,2.5);
-		target = vec3(5.f,5,2.f);
+		camPos = vec3(0.f,1.f,4);
+		target = vec3(5.f,0,2.f);
 		direction = normalize(camPos - target);
 	}
 
@@ -135,9 +135,14 @@ public:
 	}
 
 	void create(float u, float v) {
-		for (int i = 0; i < 32; i++) {
-			for (int j = 0; j < v; j++) {
-				vtx.push_back(vec3(u * cosf((float)i * (M_PI / 32.f)), u * sinf((float)i * (M_PI / 32.f)), (float)j));
+		for (int i = 0; i < v; i++) {
+			for (int j = 0; j < 34; j++) {
+				if (j % 2 == 0) {
+					vtx.push_back(vec3(u * cosf((float)j * (M_PI / 16.f)), u * sinf((float)j * (M_PI / 16.f)), i));
+				}
+				else {
+					vtx.push_back(vec3(u * cosf(((float)j - 1) * (M_PI / 16.f)), u * sinf(((float)j - 1) * (M_PI / 16.f)), i + 1));
+				}
 			}
 		}
 
@@ -149,7 +154,7 @@ public:
 	void Draw(GPUProgram *program) {
 		if (vtx.size() <= 0) return;
 
-		mat4 M = translate(vec3(5.f,5.f,0));
+		mat4 M = translate(vec3(5.f,0,-0.5f));
 		
 		glBindVertexArray(vao);
 		program->setUniform(true,"useColor");
