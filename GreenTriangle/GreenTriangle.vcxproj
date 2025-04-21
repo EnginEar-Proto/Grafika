@@ -176,6 +176,7 @@
     <ClCompile Include="GreenTriangle.cpp" />
     <ClCompile Include="..\glad.c" />
     <ClCompile Include="ParamtericSurface.cpp" />
+    <ClCompile Include="ThreeDim.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\framework.h" />
