@@ -244,7 +244,6 @@ public:
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
 		create(0,0);
-
 		updateGPU();
 	}
 
@@ -286,7 +285,10 @@ public:
 		if (vtx.size() <= 0) return;
 
 		updateGPU();
-		program->setUniform(vec3(1,1,1), "lightColor");
+		program->setUniform(true, "useColor");
+		program->setUniform(vec3(1,0,1), "lightColor");
+		program->setUniform(vec3(1,1,1), "objectColor");
+		program->setUniform(camera->P() *camera->V(), "MVP");
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
 	}
@@ -297,6 +299,7 @@ class ThreeDim : public glApp {
 	Cube* cube;
 	Plane* plane;
 	Cylinder *c;
+	LightCube* lSource;
 public:
 	ThreeDim() : glApp(":3 Dimension") {
 	
@@ -312,11 +315,13 @@ public:
 		plane = new Plane();
 		c = new Cylinder();
 		c->create(.5f, 3.f);
+		lSource = new LightCube();
 	}
 
 	void onDisplay() {
 		glViewport(0,0,600,600);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		lSource->Draw(program);
 		cube->Draw(program);
 		c->Draw(program);
 		plane->Draw(program);
