@@ -26,17 +26,18 @@ const char* fragSource = R"(
 	#version 330
 
 	uniform sampler2D sampler;
-	uniform vec3 color;
+	uniform vec3 objectColor;
 	uniform bool useColor;
+	uniform vec3 lightColor;
 
 	in vec2 texcoord;
 	out vec4 fragmentColor;
 
 	void main(){
 		if(useColor){
-			fragmentColor = vec4(color,1);
+			fragmentColor = vec4(lightColor * objectColor,1);
 		}else{
-			fragmentColor = texture(sampler, texcoord);
+			fragmentColor = texture(sampler, texcoord) * vec4(lightColor, 1);
 		}
 	}
 )";
@@ -45,8 +46,8 @@ class Camera {
 	vec3 camPos, target, direction;
 public:
 	Camera() {
-		camPos = vec3(0.f,1.f,4);
-		target = vec3(5.f,0,2.f);
+		camPos = vec3(0.f,0.f,20);
+		target = vec3(0.5,0,1.f);
 		direction = normalize(camPos - target);
 	}
 
@@ -59,49 +60,72 @@ public:
 
 Camera *camera = new Camera;
 
-class Plane {
+class Intersectable{
+public:
+	unsigned int vao, vbo;
+	vector<vec3> vtx;
+
+	Intersectable() {
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
+	}
+
+	void updateGPU() {
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, vtx.size() * sizeof(vec3), &vtx[0], GL_DYNAMIC_DRAW);
+	}
+
+	virtual void create(float u, float v) = 0;
+	virtual void Draw(GPUProgram *program) = 0;
+};
+
+class Plane: Intersectable {
 	int width = 20, height = 20;
 	unsigned int textureId = 0;
-	unsigned int vao, vbo[2];
-	vector<vec3> vtx;
+	unsigned int texVbo;
 	Texture* texture;
 public:
-	Plane() {
+	Plane(): Intersectable() {
+		create(width, height);
+
+		vtx = { vec3(-10, -10, -1),vec3(10, -10, -1),vec3(10,10,-1),vec3(-10,10,-1) };
+
+		glGenBuffers(1, &texVbo);
+		glBindBuffer(GL_ARRAY_BUFFER, texVbo);
+		std::vector<vec2> uvs = { vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0,1) };
+		glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(vec2), &uvs[0], GL_STATIC_DRAW);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), NULL);
+
+		updateGPU();
+	}
+
+	void create(float u, float v) {
 		glGenTextures(1, &textureId); // azonosító generálása
 		glBindTexture(GL_TEXTURE_2D, textureId);    // ez az aktív innentõl
 		// procedurális textúra elõállítása programmal
 		const vec3 white(1, 1, 1), blue(0, 0, 1);
-		std::vector<vec3> image(width * height);
+		vector<vec3> image(u*v);
 
-		for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
-			image[y * width + x] = (x & 1) ^ (y & 1) ? white : blue;
+		for (int x = 0; x < u; x++) for (int y = 0; y < v; y++) {
+			image[y * u + x] = (x & 1) ^ (y & 1) ? white : blue;
 		}
 
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_FLOAT, &image[0]); // To GPU
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); // sampling
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
-		glGenBuffers(2, &vbo[0]);
-
-		vtx = { vec3(-10, -10, -1),vec3(10, -10, -1),vec3(10,10,-1),vec3(-10,10,-1) };
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-		glBufferData(GL_ARRAY_BUFFER, vtx.size() * sizeof(vec3), &vtx[0], GL_DYNAMIC_DRAW);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-		std::vector<vec2> uvs = { vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0,1) };
-		glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(vec2), &uvs[0], GL_STATIC_DRAW);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), NULL);
 	}
 
 	void Bind(int textureUnit) {
 		glActiveTexture(GL_TEXTURE0 + textureUnit); // aktiválás
 		glBindTexture(GL_TEXTURE_2D, textureId); // piros nyíl
+
+		updateGPU();
 	}
 
 	void Draw(GPUProgram* program) {
@@ -121,18 +145,9 @@ public:
 	}
 };
 
-class Cylinder {
-	unsigned int vao, vbo;
-	vector<vec3> vtx;
+class Cylinder: Intersectable {
 public:
-	Cylinder() {
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
-		glGenBuffers(1, &vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0,3,GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
-	}
+	Cylinder(): Intersectable() {}
 
 	void create(float u, float v) {
 		for (int i = 0; i < v; i++) {
@@ -146,36 +161,25 @@ public:
 			}
 		}
 
-		glBindVertexArray(vao);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER,vtx.size() * sizeof(vec3), &vtx[0], GL_DYNAMIC_DRAW);
+		updateGPU();
 	}
 
 	void Draw(GPUProgram *program) {
 		if (vtx.size() <= 0) return;
 
-		mat4 M = translate(vec3(5.f,0,-0.5f));
+		mat4 M = translate(vec3(5.f,0,-0.5f)) * rotate(radians(30.f), vec3(0,1,1));
 		
 		glBindVertexArray(vao);
 		program->setUniform(true,"useColor");
-		program->setUniform(vec3(.9,0.3,0.1), "color");
+		program->setUniform(vec3(.2,0.3,0.1), "color");
 		program->setUniform(camera->P() * camera->V() * M, "MVP");
 		glDrawArrays(GL_TRIANGLE_STRIP,0,vtx.size());
 	}
 };
 
-class Cube {
-	unsigned int vao, vbo;
-	vector<vec3> vtx;
+class Cube : Intersectable {
 public:
-	Cube() {
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
-		glGenBuffers(1, &vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0,3, GL_FLOAT, GL_FALSE, sizeof(vec3), (void*)0);
-
+	Cube() : Intersectable() {
 		vtx = {
 			vec3(0.5f,  0.5f, 0.0f),
 			vec3(0.5f, -0.5f, 0.0f),
@@ -208,8 +212,11 @@ public:
 			vec3(-0.5f, -0.5f, 1.0f),
 		};
 
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, vtx.size() * sizeof(vec3), &vtx[0], GL_DYNAMIC_DRAW);
+		updateGPU();
+	}
+
+	void create(float u, float v) {
+		return;
 	}
 
 	void Draw(GPUProgram *program) {
@@ -225,6 +232,7 @@ public:
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
 	}
 };
+
 
 class ThreeDim : public glApp {
 	GPUProgram *program;
