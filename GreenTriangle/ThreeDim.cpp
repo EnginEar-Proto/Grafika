@@ -171,7 +171,7 @@ public:
 		
 		glBindVertexArray(vao);
 		program->setUniform(true,"useColor");
-		program->setUniform(vec3(.2,0.3,0.1), "color");
+		program->setUniform(vec3(.2,0.3,0.1), "objectColor");
 		program->setUniform(camera->P() * camera->V() * M, "MVP");
 		glDrawArrays(GL_TRIANGLE_STRIP,0,vtx.size());
 	}
@@ -228,11 +228,69 @@ public:
 
 		program->setUniform(camera->P() * camera->V(), "MVP");
 		program->setUniform(true, "useColor");
-		program->setUniform(vec3(0.2,0.4,0.7), "color");
+		program->setUniform(vec3(0.2,0.4,0.7), "objectColor");
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
 	}
 };
 
+class LightCube: Intersectable {
+	unsigned int lightVao;
+public:
+	LightCube() : Intersectable() {
+		glGenVertexArrays(1, &lightVao);
+		glBindVertexArray(lightVao);
+
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+		create(0,0);
+
+		updateGPU();
+	}
+
+	void create(float u, float v) {
+		vtx = {
+			vec3(0.5f,  0.5f, 0.0f),
+			vec3(0.5f, -0.5f, 0.0f),
+			vec3(-0.5f,  0.5f, 0.0f),
+			vec3(-0.5f, -0.5f, 0.0f),
+
+			vec3(-0.5f,  -0.5f, 0.0f),
+			vec3(-0.5f, 0.5f, 0.0f),
+			vec3(-0.5f,  0.5f, 1.0f),
+			vec3(-0.5f, -0.5f, 1.0f),
+
+			vec3(-0.5f,  0.5f, 0.0f),
+			vec3(0.5f, 0.5f, 0.0f),
+			vec3(-0.5f,  0.5f, 1.0f),
+			vec3(0.5f, 0.5f, 1.0f),
+
+			vec3(0.5f,  -0.5f, 0.0f),
+			vec3(0.5f, 0.5f, 0.0f),
+			vec3(0.5f,  -0.5f, 1.0f),
+			vec3(0.5f, 0.5f, 1.0f),
+
+			vec3(-0.5f,  -0.5f, 0.0f),
+			vec3(0.5f, -0.5f, 0.0f),
+			vec3(-0.5f, -0.5f, 1.0f),
+			vec3(0.5f,  -0.5f, 1.0f),
+
+			vec3(0.5f,  0.5f, 1.0f),
+			vec3(0.5f, -0.5f, 1.0f),
+			vec3(-0.5f,  0.5f, 1.0f),
+			vec3(-0.5f, -0.5f, 1.0f),
+		};
+	}
+
+	void Draw(GPUProgram *program) {
+		if (vtx.size() <= 0) return;
+
+		updateGPU();
+		program->setUniform(vec3(1,1,1), "lightColor");
+
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
+	}
+};
 
 class ThreeDim : public glApp {
 	GPUProgram *program;
