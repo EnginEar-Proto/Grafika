@@ -18,7 +18,7 @@ C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\
 C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(159,91): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
 C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(176,44): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
 C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(232,46): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(293,46): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
-C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(309,22): warning C4305: 'argument': truncation from 'double' to 'GLfloat'
-C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(309,16): warning C4305: 'argument': truncation from 'double' to 'GLfloat'
+C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(305,46): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(321,22): warning C4305: 'argument': truncation from 'double' to 'GLfloat'
+C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\sources\GreenTriangle\ThreeDim.cpp(321,16): warning C4305: 'argument': truncation from 'double' to 'GLfloat'
   GreenTriangle.vcxproj -> C:\Users\paszt\OneDrive\GrafikaLaborCsomag\GrafikaLaborCsomag\glProgram\x64\Debug\GreenTriangle.exe

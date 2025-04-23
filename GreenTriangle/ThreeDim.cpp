@@ -234,15 +234,10 @@ public:
 };
 
 class LightCube: Intersectable {
-	unsigned int lightVao;
+	vec3 ligthPos;
 public:
 	LightCube() : Intersectable() {
-		glGenVertexArrays(1, &lightVao);
-		glBindVertexArray(lightVao);
-
-		glGenBuffers(1, &vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
+		ligthPos = vec3(1.2f, 1.f, 2.f);
 		create(0,0);
 		updateGPU();
 	}
@@ -284,11 +279,28 @@ public:
 	void Draw(GPUProgram *program) {
 		if (vtx.size() <= 0) return;
 
-		updateGPU();
+		program->setUniform(vec3(1, 1, 1), "lightColor");
+		program->setUniform(vec3(1, 1, 1), "objectColor");
 		program->setUniform(true, "useColor");
-		program->setUniform(vec3(1,0,1), "lightColor");
-		program->setUniform(vec3(1,1,1), "objectColor");
-		program->setUniform(camera->P() *camera->V(), "MVP");
+
+		const char* lightShader = R"(
+			#version 330
+
+			out vec4 fragmentColor;
+
+			void main(){
+				fragmentColor = vec4(1,1,1,1);
+			}
+		)";
+
+		GPUProgram* ligthProgram = new GPUProgram(vertSource, lightShader);
+		ligthProgram->Use();
+
+		program->setUniform(camera->P() *
+			camera->V() *
+			translate(mat4(1.f), ligthPos), "MVP");
+
+		updateGPU();
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
 	}
@@ -322,6 +334,7 @@ public:
 		glViewport(0,0,600,600);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		lSource->Draw(program);
+		program->Use();
 		cube->Draw(program);
 		c->Draw(program);
 		plane->Draw(program);
