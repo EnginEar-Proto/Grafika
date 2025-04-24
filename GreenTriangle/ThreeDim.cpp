@@ -10,15 +10,22 @@ const char* vertSource = R"(
 	#version 330
 	precision highp float;
 
-	uniform mat4 MVP;
+	uniform mat4 view;
+	uniform mat4 projection;
+	uniform mat4 model;
 	out vec2 texcoord;
+	out vec3 Normal; 
+	out vec3 fragPos;
 
 	layout(location = 0) in vec3 cP;
 	layout(location = 1) in vec2 vtxUV;
+	layout(location = 2) in vec3 cNorm;
 
 	void main(){
-		gl_Position = MVP * vec4(cP, 1);
+		gl_Position = projection * view * model * vec4(cP, 1.f);
 		texcoord = vtxUV;
+		Normal = cNorm;
+		fragPos = vec3((model * vec4(cP, 1.f)).xyz);
 	}
 )";
 
@@ -29,15 +36,28 @@ const char* fragSource = R"(
 	uniform vec3 objectColor;
 	uniform bool useColor;
 	uniform vec3 lightColor;
+	uniform vec3 lightPos;
+
+	float ambientStrength = 0.1;
+	vec3 ambient = ambientStrength * lightColor;
 
 	in vec2 texcoord;
+	in vec3 Normal;
+	in vec3 fragPos;
 	out vec4 fragmentColor;
+
+	vec3 norm = normalize(Normal);
+	vec3 lightDir = normalize(lightPos - fragPos);
+
+	float diff = max(dot(norm, lightDir),0.f); //cos+
+	vec3 diffuse = diff * lightColor;
+	vec3 result = ambient + diffuse;
 
 	void main(){
 		if(useColor){
-			fragmentColor = vec4(lightColor * objectColor,1);
+			fragmentColor = vec4(result * objectColor,1);
 		}else{
-			fragmentColor = texture(sampler, texcoord) * vec4(lightColor, 1);
+			fragmentColor = texture(sampler, texcoord) * vec4(result, 1);
 		}
 	}
 )";
@@ -46,7 +66,7 @@ class Camera {
 	vec3 camPos, target, direction;
 public:
 	Camera() {
-		camPos = vec3(0.f,0.f,20);
+		camPos = vec3(-5.f,-5.f,10);
 		target = vec3(0.5,0,1.f);
 		direction = normalize(camPos - target);
 	}
@@ -62,22 +82,32 @@ Camera *camera = new Camera;
 
 class Intersectable{
 public:
-	unsigned int vao, vbo;
+	unsigned int vao, vbo[2];
 	vector<vec3> vtx;
+	vector<vec3> norms;
 
 	Intersectable() {
 		glGenVertexArrays(1, &vao);
 		glBindVertexArray(vao);
-		glGenBuffers(1, &vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glGenBuffers(2, vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
+
+
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
 	}
 
 	void updateGPU() {
 		glBindVertexArray(vao);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 		glBufferData(GL_ARRAY_BUFFER, vtx.size() * sizeof(vec3), &vtx[0], GL_DYNAMIC_DRAW);
+
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+		glBufferData(GL_ARRAY_BUFFER, norms.size() * sizeof(vec3), &norms[0], GL_DYNAMIC_DRAW);
 	}
 
 	virtual void create(float u, float v) = 0;
@@ -94,6 +124,10 @@ public:
 		create(width, height);
 
 		vtx = { vec3(-10, -10, -1),vec3(10, -10, -1),vec3(10,10,-1),vec3(-10,10,-1) };
+		
+		for (int i = 0; i < (int)vtx.size(); i++) {
+			norms.push_back(vec3(0,0,1));
+		}
 
 		glGenBuffers(1, &texVbo);
 		glBindBuffer(GL_ARRAY_BUFFER, texVbo);
@@ -133,7 +167,9 @@ public:
 
 		program->setUniform(false, "useColor");
 		program->setUniform(sampler, "sampler");
-		program->setUniform(camera->P() * camera->V(), "MVP");
+		program->setUniform(camera->P(), "projection");
+		program->setUniform(camera->V(), "view");
+		program->setUniform(mat4(1.f), "model");
 
 		this->Bind(sampler);
 		glBindVertexArray(vao);
@@ -146,19 +182,23 @@ public:
 };
 
 class Cylinder: Intersectable {
+	vec3 vDir;
 public:
-	Cylinder(): Intersectable() {}
+	Cylinder(): Intersectable() {
+		vDir = vec3(0,0,1);
+	}
 
 	void create(float u, float v) {
-		for (int i = 0; i < v; i++) {
-			for (int j = 0; j < 34; j++) {
-				if (j % 2 == 0) {
-					vtx.push_back(vec3(u * cosf((float)j * (M_PI / 16.f)), u * sinf((float)j * (M_PI / 16.f)), i));
-				}
-				else {
-					vtx.push_back(vec3(u * cosf(((float)j - 1) * (M_PI / 16.f)), u * sinf(((float)j - 1) * (M_PI / 16.f)), i + 1));
-				}
+		for (int j = 0; j < 34; j++) {
+			vec3 vert;
+			if (j % 2 == 0) {
+				vert = vec3(u * cosf((float)j * (M_PI / 16.f)), u * sinf((float)j * (M_PI / 16.f)), 0);
 			}
+			else {
+				vert = vec3(u * cosf((float)j * (M_PI / 16.f)), u * sinf((float)j * (M_PI / 16.f)), v);
+			}
+			vtx.push_back(vert);
+			norms.push_back(vert);
 		}
 
 		updateGPU();
@@ -168,11 +208,13 @@ public:
 		if (vtx.size() <= 0) return;
 
 		mat4 M = translate(vec3(5.f,0,-0.5f)) * rotate(radians(30.f), vec3(0,1,1));
-		
+
 		glBindVertexArray(vao);
 		program->setUniform(true,"useColor");
 		program->setUniform(vec3(.2,0.3,0.1), "objectColor");
-		program->setUniform(camera->P() * camera->V() * M, "MVP");
+		program->setUniform(camera->V(), "view");
+		program->setUniform(camera->P(), "projection");
+		program->setUniform(M, "model");
 		glDrawArrays(GL_TRIANGLE_STRIP,0,vtx.size());
 	}
 };
@@ -212,6 +254,8 @@ public:
 			vec3(-0.5f, -0.5f, 1.0f),
 		};
 
+		norms = { cross(vtx[1], vtx[2]), cross(vtx[5], vtx[6]), cross(vtx[9], vtx[10]), cross(vtx[13], vtx[14]), cross(vtx[17], vtx[18]), cross(vtx[21], vtx[22])};
+
 		updateGPU();
 	}
 
@@ -223,10 +267,12 @@ public:
 		if (vtx.size() <= 0) return;
 
 		glBindVertexArray(vao);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 		glBufferData(GL_ARRAY_BUFFER, vtx.size() * sizeof(vec3), &vtx[0], GL_DYNAMIC_DRAW);
 
-		program->setUniform(camera->P() * camera->V(), "MVP");
+		program->setUniform(camera->P(), "projection");
+		program->setUniform(camera->V(), "view");
+		program->setUniform(mat4(1.f), "model");
 		program->setUniform(true, "useColor");
 		program->setUniform(vec3(0.2,0.4,0.7), "objectColor");
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
@@ -274,6 +320,8 @@ public:
 			vec3(-0.5f,  0.5f, 1.0f),
 			vec3(-0.5f, -0.5f, 1.0f),
 		};
+
+		norms = { cross(vtx[1], vtx[2]), cross(vtx[5], vtx[6]), cross(vtx[9], vtx[10]), cross(vtx[13], vtx[14]), cross(vtx[17], vtx[18]), cross(vtx[21], vtx[22]) };
 	}
 
 	void Draw(GPUProgram *program) {
@@ -282,6 +330,7 @@ public:
 		program->setUniform(vec3(1, 1, 1), "lightColor");
 		program->setUniform(vec3(1, 1, 1), "objectColor");
 		program->setUniform(true, "useColor");
+		program->setUniform(ligthPos, "lightPos");
 
 		const char* lightShader = R"(
 			#version 330
@@ -296,9 +345,9 @@ public:
 		GPUProgram* ligthProgram = new GPUProgram(vertSource, lightShader);
 		ligthProgram->Use();
 
-		program->setUniform(camera->P() *
-			camera->V() *
-			translate(mat4(1.f), ligthPos), "MVP");
+		program->setUniform(camera->P(), "projection");
+		program->setUniform(camera->V(), "view");
+		program->setUniform(translate(mat4(1.f), ligthPos), "model");
 
 		updateGPU();
 
@@ -323,7 +372,6 @@ public:
 		glEnable(GL_DEPTH_TEST);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		program = new GPUProgram(vertSource, fragSource);
-		cube = new Cube();
 		plane = new Plane();
 		c = new Cylinder();
 		c->create(.5f, 3.f);
@@ -335,7 +383,6 @@ public:
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		lSource->Draw(program);
 		program->Use();
-		cube->Draw(program);
 		c->Draw(program);
 		plane->Draw(program);
 	}
