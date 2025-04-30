@@ -24,7 +24,7 @@ const char* vertSource = R"(
 	void main(){
 		gl_Position = projection * view * model * vec4(cP, 1.f);
 		texcoord = vtxUV;
-		Normal = cNorm;
+		Normal = mat3(transpose(inverse(model))) * cNorm;
 		fragPos = vec3((model * vec4(cP, 1.f)).xyz);
 	}
 )";
@@ -73,6 +73,7 @@ public:
 
 	mat4 V() { return lookAt(camPos, target, vec3(0,0,1)); }
 	mat4 P() { return perspective(radians(45.f), 1.f, 0.1f, 100.f); }
+	void cam_rotate() { camPos = rotate(radians(45.f), vec3(0, 0, 1)) * vec4(camPos,1); }
 
 	mat4 Vinv() {}
 	mat4 Pinv() {}
@@ -182,11 +183,8 @@ public:
 };
 
 class Cylinder: Intersectable {
-	vec3 vDir;
 public:
-	Cylinder(): Intersectable() {
-		vDir = vec3(0,0,1);
-	}
+	Cylinder(): Intersectable() {}
 
 	void create(float u, float v) {
 		for (int j = 0; j < 34; j++) {
@@ -218,6 +216,42 @@ public:
 		glDrawArrays(GL_TRIANGLE_STRIP,0,vtx.size());
 	}
 };
+
+class Kup : Intersectable {
+public:
+	Kup() : Intersectable() {}
+
+	void create(float u, float v) {
+		for (int j = 0; j < 34; j++) {
+			vec3 vert;
+			if (j % 2 == 0) {
+				vert = vec3(u * cosf((float)j * (M_PI / 16.f)), u * sinf((float)j * (M_PI / 16.f)), 0);
+			}
+			else {
+				vert = vec3(0, 0, v);
+			}
+			vtx.push_back(vert);
+			norms.push_back(vert);
+		}
+		updateGPU();
+	}
+
+	void Draw(GPUProgram* program) {
+		if (vtx.size() <= 0) return;
+
+		mat4 M = translate(vec3(0, 5.f, -0.5f)) * rotate(radians(30.f), vec3(0, 1, 1));
+
+		glBindVertexArray(vao);
+		program->setUniform(true, "useColor");
+		program->setUniform(vec3(.7, 0.1, 0.7), "objectColor");
+		program->setUniform(camera->V(), "view");
+		program->setUniform(camera->P(), "projection");
+		program->setUniform(M, "model");
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, vtx.size());
+	}
+};
+
+
 
 class Cube : Intersectable {
 public:
@@ -361,6 +395,7 @@ class ThreeDim : public glApp {
 	Plane* plane;
 	Cylinder *c;
 	LightCube* lSource;
+	Kup* kup;
 public:
 	ThreeDim() : glApp(":3 Dimension") {
 	
@@ -376,6 +411,8 @@ public:
 		c = new Cylinder();
 		c->create(.5f, 3.f);
 		lSource = new LightCube();
+		kup = new Kup();
+		kup->create(0.5, 2.f);
 	}
 
 	void onDisplay() {
@@ -384,7 +421,15 @@ public:
 		lSource->Draw(program);
 		program->Use();
 		c->Draw(program);
+		kup->Draw(program);
 		plane->Draw(program);
+	}
+
+	void onKeyboard(int key) {
+		if (key != 'a') return;
+
+		camera->cam_rotate();
+		refreshScreen();
 	}
 };
 
